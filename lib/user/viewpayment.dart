@@ -1,11 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:mechconnect/user/register.dart';
 
-class Viewpayment extends StatelessWidget {
+class Viewpayment extends StatefulWidget {
   Viewpayment({super.key});
-  List<dynamic> Payment = [
-    {"name": "hina", "type": "pickup", "issue": "issue1", "amount": 500},
-    {"name": "lubin", "type": "mechanic", "issue": "issue2", "amount": 100},
-  ];
+
+  @override
+  State<Viewpayment> createState() => _ViewpaymentState();
+}
+
+class _ViewpaymentState extends State<Viewpayment> {
+  List<dynamic> Payment = [];
+
+  Future<void> get_bill(context) async {
+    try {
+      final response = await dio.get('$baseurl/api/user/home/');
+      print(response.data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        setState(() {
+          Payment = response.data["data"]; // Extract "data"
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(' successful')));
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(' failed')));
+      }
+    } catch (e) {
+      print(e);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    get_bill(context);
+  }
 
   @override
   Widget build(BuildContext context) {

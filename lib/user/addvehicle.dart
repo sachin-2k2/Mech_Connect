@@ -50,6 +50,7 @@ class _AddvehicleState extends State<Addvehicle> {
           'fuelType': selectedFuelType,
           'year': yearController.text,
           'vehicleNumber': vehicleNumberController.text,
+          'vehicleType':vehicleTypeController.text,
         },
       );
 

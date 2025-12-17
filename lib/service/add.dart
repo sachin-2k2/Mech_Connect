@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:mechconnect/mechanic/home.dart';
+import 'package:mechconnect/service/home.dart';
 import 'package:mechconnect/user/register.dart'; // make sure this has your Dio instance & baseurl
 
 class Add extends StatefulWidget {
@@ -16,6 +18,10 @@ class _AddState extends State<Add> {
   bool isLoadingMechanic = true;
   bool isLoadingPickup = true;
 
+  // Track request status per item
+  Map<String, String> mechanicRequestStatus = {};
+  Map<String, String> pickupRequestStatus = {};
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +34,9 @@ class _AddState extends State<Add> {
   // ----------------------------
   Future<void> fetchMechanicData() async {
     try {
-      final response = await dio.get('$baseurl/api/mechanic/all');
+      final response = await dio.get(
+        '$baseurl/api/mechanic/viewmechanic/$sobid',
+      );
       print(response.data);
       if (response.statusCode == 200) {
         setState(() {
@@ -50,7 +58,6 @@ class _AddState extends State<Add> {
   Future<void> fetchPickupData() async {
     try {
       final response = await dio.get('$baseurl/api/user/pickups');
-      print(response.data);
       if (response.statusCode == 200) {
         setState(() {
           pickupItems = response.data["data"] ?? [];
@@ -66,32 +73,101 @@ class _AddState extends State<Add> {
   }
 
   // ----------------------------
+  // POST REQUEST FOR MECHANIC
+  // ----------------------------
+  Future<void> post_reqmech(
+    BuildContext context,
+    String mechanicId,
+    String reqid,
+    String status,
+  ) async {
+    try {
+      final response = await dio.post(
+        '$baseurl/api/mechanic/respond/$mechanicId',
+        data: {'requestId': reqid, 'action': status},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        setState(() {
+          mechanicRequestStatus[mechanicId] = 'Requested';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request sent successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Request failed')));
+      }
+    } catch (e) {
+      print("❌ error: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  // ----------------------------
+  // POST REQUEST FOR PICKUP
+  // ----------------------------
+  Future<void> post_reqpic(BuildContext context, String pickupId) async {
+    try {
+      final response = await dio.post(
+        '$baseurl/api/mechanic/request',
+        data: {'mechanicId': pickupId},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        setState(() {
+          pickupRequestStatus[pickupId] = 'Requested';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request sent successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Request failed')));
+      }
+    } catch (e) {
+      print("❌ error: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  // ----------------------------
   // BUILD LIST WIDGET
   // ----------------------------
   Widget buildList(List<dynamic> items, bool isLoading, bool isMechanic) {
-    if (isLoading) {
-      return Center(child: CircularProgressIndicator());
-    }
-
-    if (items.isEmpty) {
-      return Center(child: Text("No requests available"));
-    }
+    if (isLoading) return Center(child: CircularProgressIndicator());
+    if (items.isEmpty) return Center(child: Text("No requests available"));
 
     return ListView.builder(
       itemCount: items.length,
       itemBuilder: (context, index) {
         var item = items[index];
+        String id = item['_id'];
 
-        String name = isMechanic ? item["mechanicName"] ?? "N/A" : item["name"] ?? "N/A";
+        String name = isMechanic
+            ? item["mechanicName"] ?? "N/A"
+            : item["name"] ?? "N/A";
         String phone = item["phone"] ?? "-";
         String email = item["email"] ?? "-";
         String location = isMechanic
             ? "N/A"
             : (item["location"] != null
-                ? "Lat: ${item["location"]["lat"]}, Lng: ${item["location"]["lng"]}"
-                : "N/A");
-        String vehicle = isMechanic ? "-" : (item["vehicleNumber"]?.toString() ?? "-");
+                  ? "Lat: ${item["location"]["lat"]}, Lng: ${item["location"]["lng"]}"
+                  : "N/A");
+        String vehicle = isMechanic
+            ? "-"
+            : (item["vehicleNumber"]?.toString() ?? "-");
         String certificate = item["certificateImg"] ?? "-";
+
+        String status = isMechanic
+            ? mechanicRequestStatus[id] ?? "Accept"
+            : pickupRequestStatus[id] ?? "Accept";
 
         return Padding(
           padding: const EdgeInsets.all(10.0),
@@ -111,21 +187,46 @@ class _AddState extends State<Add> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: () {
-                          // TODO: handle Accept action
-                        },
+                        onPressed: status == "Requested"
+                            ? null
+                            : () {
+                                if (isMechanic) {
+                                  post_reqmech(
+                                    context,
+                                    mechanicItems[index]['_id'],
+                                    mechanicItems[index]['requests'][0]['_id'],
+                                    'accept',
+                                  );
+                                } else {
+                                  post_reqpic(
+                                    context,
+                                    pickupItems[index]['_id'],
+                                  );
+                                }
+                              },
                         child: Text(
-                          "Accept",
+                          status,
                           style: TextStyle(color: Colors.white),
                         ),
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: status == "Requested"
+                              ? Colors.grey
+                              : Colors.green,
                         ),
                       ),
                       SizedBox(width: 10),
                       TextButton(
                         onPressed: () {
-                          // TODO: handle Reject action
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text("Rejected")));
+                          setState(() {
+                            if (isMechanic) {
+                              mechanicRequestStatus[id] = "Accept";
+                            } else {
+                              pickupRequestStatus[id] = "Accept";
+                            }
+                          });
                         },
                         child: Text(
                           "Reject",

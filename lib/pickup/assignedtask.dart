@@ -6,20 +6,20 @@ import 'package:mechconnect/pickup/home.dart';
 import 'package:mechconnect/user/register.dart';
 
 class Assignedtaskpicks extends StatefulWidget {
-  Assignedtaskpicks({super.key});
+  const Assignedtaskpicks({super.key});
 
   @override
   State<Assignedtaskpicks> createState() => _AssignedtaskpicksState();
 }
 
 class _AssignedtaskpicksState extends State<Assignedtaskpicks> {
-  List<dynamic> allReq = []; // all tasks from API
-  List<dynamic> filteredReq = []; // tasks filtered by distance
+  List<dynamic> allReq = [];
+  List<dynamic> filteredReq = [];
+
   Position? currentPosition;
-
   StreamSubscription<Position>? positionStream;
-  String? activeTaskId; // track which task is currently accepted
 
+  String? activeTaskId; // Track which task is currently being tracked
 
   @override
   void initState() {
@@ -39,25 +39,20 @@ class _AssignedtaskpicksState extends State<Assignedtaskpicks> {
   Future<void> get_req(BuildContext context) async {
     try {
       final response = await dio.get('$baseurl/api/pickup/agent/$pobid');
-      print(response.data);
 
       if (response.statusCode == 200) {
         allReq = response.data["data"] ?? [];
         await getCurrentLocationOnce();
         filterTasksByDistance();
-      } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to fetch tasks")));
       }
     } catch (e) {
-      print(e);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
   // ============================
-  // GET CURRENT LOCATION ONCE
+  // GET LOCATION ONCE
   // ============================
   Future<void> getCurrentLocationOnce() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -66,36 +61,51 @@ class _AssignedtaskpicksState extends State<Assignedtaskpicks> {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
     }
-    if (permission == LocationPermission.deniedForever) return;
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) return;
 
     currentPosition =
         await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
   }
 
   // ============================
-  // START LIVE LOCATION STREAM
+  // START LIVE TRACKING
   // ============================
   void startTrackingLocation(String taskId) {
-    stopTrackingLocation(); // stop previous stream if any
+    // Stop any existing tracking first
+    stopTrackingLocation();
+
+    // Set the active task ID
     activeTaskId = taskId;
 
-    const LocationSettings locationSettings = LocationSettings(
+    print("🚗 Starting live location tracking for task: $taskId");
+
+    // Location settings for the stream
+    const LocationSettings settings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5, // update every 5 meters
+      distanceFilter: 5, // Send update every 5 meters movement
     );
 
-    positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
+    // Start listening to location updates
+    positionStream = Geolocator.getPositionStream(locationSettings: settings)
         .listen((Position position) {
-      setState(() {
-        currentPosition = position;
-      });
+      // Update current position
+      currentPosition = position;
+      
+      print("📍 Location update - Lat: ${position.latitude}, Lng: ${position.longitude}");
 
-      // Send live location to API
+      // Send location to server for the active task
       if (activeTaskId != null) {
-        updateStatusWithLocation(activeTaskId!, "accepted", position.latitude, position.longitude);
+        updateStatusWithLocation(
+          activeTaskId!,
+          "accepted", // Status remains "accepted" during tracking
+          position.latitude,
+          position.longitude,
+        );
       }
+    }, onError: (error) {
+      print("❌ Location stream error: $error");
     });
   }
 
@@ -103,204 +113,296 @@ class _AssignedtaskpicksState extends State<Assignedtaskpicks> {
   // STOP TRACKING
   // ============================
   void stopTrackingLocation() {
-    positionStream?.cancel();
-    positionStream = null;
+    if (positionStream != null) {
+      positionStream!.cancel();
+      positionStream = null;
+      print("🛑 Stopped live location tracking for task: $activeTaskId");
+    }
     activeTaskId = null;
   }
 
   // ============================
-  // UPDATE TASK STATUS WITH LOCATION
+  // UPDATE STATUS + LOCATION
   // ============================
   Future<void> updateStatusWithLocation(
-      String taskId, String status, double latitude, double longitude) async {
+    String taskId,
+    String status,
+    double lat,
+    double lng,
+  ) async {
     try {
-      final response = await dio.put(
+      print("📡 Sending location to server - Task: $taskId, Status: $status");
+      
+      await dio.put(
         '$baseurl/api/pickup/status/$taskId',
         data: {
-          'status': status,
-         'agentLocation':{
-           'lat': latitude,
-          'lng': longitude,
-         }
+          "status": status,
+          "agentLocation": {
+            "lat": lat,
+            "lng": lng,
+          }
         },
       );
-
-      if (response.statusCode == 200) {
-        print('Status & location updated successfully');
-      } else {
-        print('Failed to update status & location');
-      }
+      
+      print("✅ Location sent successfully");
     } catch (e) {
-      print('Error updating status & location: $e');
+      print("❌ Location update error: $e");
     }
   }
 
   // ============================
-  // FILTER TASKS BY DISTANCE
+  // FILTER BY DISTANCE
   // ============================
   void filterTasksByDistance({double maxDistanceKm = 10}) {
     if (currentPosition == null) return;
 
     filteredReq = allReq.where((task) {
-      var location = task["userLocation"];
-      if (location == null) return false;
+      final loc = task["userLocation"];
+      if (loc == null) return false;
 
-      double distanceInMeters = Geolocator.distanceBetween(
+      double distance = Geolocator.distanceBetween(
         currentPosition!.latitude,
         currentPosition!.longitude,
-        location["lat"],
-        location["lng"],
+        loc["lat"],
+        loc["lng"],
       );
 
-      return distanceInMeters / 1000 <= maxDistanceKm;
+      return distance / 1000 <= maxDistanceKm;
     }).toList();
 
     setState(() {});
   }
 
-  // ============================
-  // CALCULATE DISTANCE
-  // ============================
   String getDistance(double lat, double lng) {
     if (currentPosition == null) return "-";
-    double distanceInMeters = Geolocator.distanceBetween(
+    final meters = Geolocator.distanceBetween(
       currentPosition!.latitude,
       currentPosition!.longitude,
       lat,
       lng,
     );
-    return (distanceInMeters / 1000).toStringAsFixed(2);
+    return (meters / 1000).toStringAsFixed(2);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           "Nearby Tasks",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.lightBlueAccent,
+        // Show which task is being tracked
+        actions: [
+          if (activeTaskId != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.white, size: 20),
+                  SizedBox(width: 5),
+                  Text(
+                    "Tracking",
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
       body: currentPosition == null
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : filteredReq.isEmpty
-              ? Center(child: Text("No nearby tasks"))
-              : ListView.builder(
-                  itemCount: filteredReq.length,
-                  itemBuilder: (context, index) {
-                    var task = filteredReq[index];
-                    var user = task["userId"];
-                    var location = task["userLocation"];
-                    double pickupLat = location?["lat"] ?? 0.0;
-                    double pickupLng = location?["lng"] ?? 0.0;
-                    String distance = (pickupLat != 0.0 && pickupLng != 0.0)
-                        ? getDistance(pickupLat, pickupLng)
-                        : "-";
-
-                    return Padding(
-                      padding: const EdgeInsets.all(10.0),
-                      child: InkWell(
-                        onTap: () {},
-                        child: Card(
-                          child: ListTile(
-                            title: Text("Vehicle: ${task["vehicletype"]}"),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  pickupLat != 0.0 && pickupLng != 0.0
-                                      ? "Pickup: $pickupLat, $pickupLng (${distance} km away)"
-                                      : "Pickup location not available",
-                                ),
-                                Text("Drop: ${task["dropLocation"]}"),
-                                Text("User: ${user?["name"] ?? "N/A"}"),
-                                Text("Phone: ${user?["phone"] ?? "N/A"}"),
-                                Text("Status: ${task["status"]}"),
-                                SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: task["status"] == "pending"
-                                      ? [
-                                          // Accept button starts live tracking
-                                          TextButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                task["status"] = "accepted";
-                                              });
-                                              startTrackingLocation(task["_id"]);
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor:
-                                                  Color.fromARGB(195, 76, 175, 79),
-                                            ),
-                                            child: Text(
-                                              "Accept",
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                          SizedBox(width: 10),
-                                          TextButton(
-                                            onPressed: () async {
-                                              setState(() {
-                                                task["status"] = "rejected";
-                                              });
-                                              stopTrackingLocation();
-                                              await updateStatusWithLocation(
-                                                  task["_id"],
-                                                  "rejected",
-                                                  currentPosition?.latitude ?? 0.0,
-                                                  currentPosition?.longitude ?? 0.0);
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor:
-                                                  Color.fromARGB(196, 244, 67, 54),
-                                            ),
-                                            child: Text(
-                                              "Reject",
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                        ]
-                                      : task["status"] == "accepted"
-                                          ? [
-                                              TextButton(
-                                                onPressed: () async {
-                                                  setState(() {
-                                                    task["status"] = "completed";
-                                                  });
-                                                  stopTrackingLocation();
-                                                  await updateStatusWithLocation(
-                                                      task["_id"],
-                                                      "completed",
-                                                      currentPosition?.latitude ?? 0.0,
-                                                      currentPosition?.longitude ?? 0.0);
-                                                },
-                                                style: TextButton.styleFrom(
-                                                    backgroundColor: Colors.blue),
-                                                child: Text(
-                                                  "Complete",
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                              SizedBox(width: 10),
-                                            ]
-                                          : [],
-                                ),
-                              ],
+              ? const Center(child: Text("No nearby tasks"))
+              : Column(
+                  children: [
+                    // Show active tracking info
+                    if (activeTaskId != null)
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        color: Colors.green[50],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.location_on, color: Colors.green),
+                            SizedBox(width: 10),
+                            Text(
+                              "Live location sharing ACTIVE",
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                    );
-                  },
+                    
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredReq.length,
+                        itemBuilder: (context, index) {
+                          final task = filteredReq[index];
+                          final user = task["userId"];
+                          final location = task["userLocation"];
+
+                          final lat = location?["lat"] ?? 0.0;
+                          final lng = location?["lng"] ?? 0.0;
+
+                          // Check if this task is currently being tracked
+                          bool isTrackingThisTask = activeTaskId == task["_id"];
+
+                          return Card(
+                            margin: const EdgeInsets.all(10),
+                            color: isTrackingThisTask ? Colors.blue[50] : Colors.white,
+                            elevation: isTrackingThisTask ? 4 : 1,
+                            child: ListTile(
+                              title: Text(
+                                "Vehicle: ${task["vehicletype"]}",
+                                style: TextStyle(
+                                  fontWeight: isTrackingThisTask 
+                                      ? FontWeight.bold 
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    lat != 0
+                                        ? "Pickup: ${getDistance(lat, lng)} km away"
+                                        : "Pickup location unavailable",
+                                  ),
+                                  Text("Drop: ${task["dropLocation"]}"),
+                                  Text("User: ${user?["name"] ?? "N/A"}"),
+                                  Text("Phone: ${user?["phone"] ?? "N/A"}"),
+                                  Row(
+                                    children: [
+                                      Text("Status: ${task["status"]}"),
+                                      if (isTrackingThisTask)
+                                        Row(
+                                          children: [
+                                            SizedBox(width: 10),
+                                            Icon(Icons.location_on, 
+                                                color: Colors.green, size: 16),
+                                            Text(
+                                              " Tracking",
+                                              style: TextStyle(
+                                                color: Colors.green,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: task["status"] == "pending"
+                                        ? [
+                                            // ACCEPT BUTTON
+                                            ElevatedButton(
+                                              onPressed: activeTaskId != null
+                                                  ? null // Disable if already tracking another task
+                                                  : () async {
+                                                      setState(() {
+                                                        task["status"] = "accepted";
+                                                      });
+
+                                                      // Send initial accept location
+                                                      await updateStatusWithLocation(
+                                                        task["_id"],
+                                                        "accepted",
+                                                        currentPosition!.latitude,
+                                                        currentPosition!.longitude,
+                                                      );
+
+                                                      // Start continuous tracking
+                                                      startTrackingLocation(task["_id"]);
+                                                    },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.green,
+                                                disabledBackgroundColor: Colors.grey,
+                                              ),
+                                              child: const Text(
+                                                "Accept",
+                                                style: TextStyle(color: Colors.white),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            // REJECT BUTTON
+                                            ElevatedButton(
+                                              onPressed: () async {
+                                                stopTrackingLocation();
+                                                setState(() {
+                                                  task["status"] = "rejected";
+                                                });
+                                                await updateStatusWithLocation(
+                                                  task["_id"],
+                                                  "rejected",
+                                                  currentPosition!.latitude,
+                                                  currentPosition!.longitude,
+                                                );
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.red,
+                                              ),
+                                              child: const Text(
+                                                "Reject",
+                                                style: TextStyle(color: Colors.white),
+                                              ),
+                                            ),
+                                          ]
+                                        : task["status"] == "accepted"
+                                            ? [
+                                                // COMPLETE BUTTON
+                                                ElevatedButton(
+                                                  onPressed: () async {
+                                                    // Stop live tracking
+                                                    stopTrackingLocation();
+                                                    
+                                                    setState(() {
+                                                      task["status"] = "completed";
+                                                    });
+                                                    
+                                                    // Send final location with completed status
+                                                    await updateStatusWithLocation(
+                                                      task["_id"],
+                                                      "completed",
+                                                      currentPosition!.latitude,
+                                                      currentPosition!.longitude,
+                                                    );
+                                                    
+                                                    // Show confirmation
+                                                    ScaffoldMessenger.of(context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          "Task completed! Location tracking stopped.",
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.blue,
+                                                  ),
+                                                  child: const Text(
+                                                    "Complete",
+                                                    style: TextStyle(color: Colors.white),
+                                                  ),
+                                                ),
+                                              ]
+                                            : [],
+                                  )
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
     );
   }

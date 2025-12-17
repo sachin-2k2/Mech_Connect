@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mechconnect/user/addvehicle.dart';
 
 import 'package:mechconnect/user/chatbot.dart';
+import 'package:mechconnect/user/history.dart';
 import 'package:mechconnect/user/login.dart';
 import 'package:mechconnect/user/notifications.dart';
 import 'package:mechconnect/user/pickup.dart';
@@ -282,7 +283,7 @@ class _HomeScreenusrState extends State<HomeScreenusr> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => Viewpayment()),
+                      MaterialPageRoute(builder: (context) => BookingHistory()),
                     );
                   },
                   child: Column(

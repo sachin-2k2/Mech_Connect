@@ -1,8 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:mechconnect/mechanic/home.dart';
+import 'package:mechconnect/user/register.dart';
 
 class BillPage extends StatefulWidget {
-  const BillPage({super.key});
+  final String taskid;
+  const BillPage({super.key, required this.taskid});
 
   @override
   State<BillPage> createState() => _BillPageState();
@@ -14,13 +17,17 @@ class _BillPageState extends State<BillPage> {
   List<ProductItem> products = [];
   double totalAmount = 0.0;
 
+  final Dio dio = Dio(); // Dio instance
+
   void calculateTotal() {
     double serviceCharge =
         double.tryParse(serviceChargeController.text.trim()) ?? 0.0;
 
     double productTotal = 0.0;
     for (var p in products) {
-      productTotal += double.tryParse(p.priceController.text.trim()) ?? 0.0;
+      double price = double.tryParse(p.priceController.text.trim()) ?? 0.0;
+      int quantity = int.tryParse(p.quantityController.text.trim()) ?? 1;
+      productTotal += price * quantity;
     }
 
     setState(() {
@@ -28,11 +35,63 @@ class _BillPageState extends State<BillPage> {
     });
   }
 
+  // ✅ Submit bill to API
+  Future<void> submitBill() async {
+    if (mechanicController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Enter mechanic name")));
+      return;
+    }
+
+    List<Map<String, dynamic>> productList = products
+        .map(
+          (p) => {
+            "name": p.nameController.text.trim(),
+            "price": double.tryParse(p.priceController.text.trim()) ?? 0,
+            "quantity": int.tryParse(p.quantityController.text.trim()) ?? 1,
+          },
+        )
+        .toList();
+
+    final data = {
+      "serviceCharge":
+          double.tryParse(serviceChargeController.text.trim()) ?? 0,
+      "replacedProducts": productList,
+      "totalAmount": totalAmount,
+    };
+
+    try {
+      final response = await dio.post(
+        "$baseurl/api/booking/${widget.taskid}/generateBill", // replace with your API
+        data: data,
+        options: Options(),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Bill submitted successfully")),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => Homemechanic()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: ${response.statusMessage}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffe6eef3),
-
       appBar: AppBar(
         backgroundColor: const Color(0xff4e6e88),
         title: const Text(
@@ -42,7 +101,6 @@ class _BillPageState extends State<BillPage> {
         centerTitle: true,
         elevation: 3,
       ),
-
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xff4e6e88),
         onPressed: () {
@@ -52,30 +110,22 @@ class _BillPageState extends State<BillPage> {
         },
         child: const Icon(Icons.add, color: Colors.white),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              /// Mechanic Name
               formTitle("Mechanic Name"),
               buildInput(mechanicController),
-
               const SizedBox(height: 18),
-
-              /// Service Charge
               formTitle("Service Charge"),
               buildInput(
                 serviceChargeController,
                 number: true,
                 onChanged: (_) => calculateTotal(),
               ),
-
               const SizedBox(height: 25),
-
-              /// Replaced Products Title
               const Text(
                 "Replaced Products",
                 style: TextStyle(
@@ -84,10 +134,7 @@ class _BillPageState extends State<BillPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 10),
-
-              /// Product List
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -96,16 +143,13 @@ class _BillPageState extends State<BillPage> {
                   return productCard(index);
                 },
               ),
-
               const SizedBox(height: 25),
-
-              /// Total Amount
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
                       color: Colors.black26,
                       blurRadius: 6,
@@ -125,7 +169,7 @@ class _BillPageState extends State<BillPage> {
                       ),
                     ),
                     Text(
-                      "₹ $totalAmount",
+                      "₹ ${totalAmount.toStringAsFixed(2)}",
                       style: const TextStyle(
                         color: Colors.green,
                         fontSize: 22,
@@ -135,18 +179,12 @@ class _BillPageState extends State<BillPage> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 25),
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => Homemechanic()),
-                    );
-                  },
-                  child: Text(
-                    "submit",
+                  onPressed: submitBill,
+                  child: const Text(
+                    "Submit",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -154,7 +192,7 @@ class _BillPageState extends State<BillPage> {
                   ),
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    minimumSize: Size(100, 50),
+                    minimumSize: const Size(100, 50),
                   ),
                 ),
               ),
@@ -165,7 +203,6 @@ class _BillPageState extends State<BillPage> {
     );
   }
 
-  /// 🟦 Product Card UI
   Widget productCard(int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -199,17 +236,19 @@ class _BillPageState extends State<BillPage> {
               ),
             ],
           ),
-
-          /// Product Name
           formTitle("Product Name"),
           buildInput(products[index].nameController),
-
           const SizedBox(height: 10),
-
-          /// Product Price
           formTitle("Price"),
           buildInput(
             products[index].priceController,
+            number: true,
+            onChanged: (_) => calculateTotal(),
+          ),
+          const SizedBox(height: 10),
+          formTitle("Quantity"),
+          buildInput(
+            products[index].quantityController,
             number: true,
             onChanged: (_) => calculateTotal(),
           ),
@@ -218,7 +257,6 @@ class _BillPageState extends State<BillPage> {
     );
   }
 
-  /// Reusable Form Title
   Widget formTitle(String title) {
     return Text(
       title,
@@ -230,7 +268,6 @@ class _BillPageState extends State<BillPage> {
     );
   }
 
-  /// Reusable TextField
   Widget buildInput(
     TextEditingController controller, {
     bool number = false,
@@ -240,22 +277,6 @@ class _BillPageState extends State<BillPage> {
       controller: controller,
       keyboardType: number ? TextInputType.number : TextInputType.text,
       onChanged: onChanged,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xff4e6e88)),
-        ),
-      ),
     );
   }
 }
@@ -263,4 +284,7 @@ class _BillPageState extends State<BillPage> {
 class ProductItem {
   TextEditingController nameController = TextEditingController();
   TextEditingController priceController = TextEditingController();
+  TextEditingController quantityController = TextEditingController(
+    text: "1",
+  ); // default quantity 1
 }

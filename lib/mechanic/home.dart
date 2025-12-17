@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mechconnect/mechanic/assignedtask.dart';
+import 'package:mechconnect/mechanic/servicecenters.dart';
 import 'package:mechconnect/user/login.dart';
 import 'package:mechconnect/user/register.dart';
 
@@ -14,11 +15,9 @@ Map<String, dynamic> mdata = {};
 String? mobid;
 
 class _HomemechanicState extends State<Homemechanic> {
-
-
- Future<void> get_mhome(context) async {
+  Future<void> get_mhome(context) async {
     try {
-      final response = await dio.get('$baseurl/api/user/home/$loginid');
+      final response = await dio.get('$baseurl/api/mechanic/home/$loginid');
       print(response.data);
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
@@ -68,6 +67,30 @@ class _HomemechanicState extends State<Homemechanic> {
                 icon: Icon(Icons.task_alt, color: Colors.blue),
                 label: Text(
                   "ASSIGNED TASK",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.blue.withOpacity(0.15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  minimumSize: Size(double.infinity, 80),
+                ),
+              ),
+              SizedBox(height: 20),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Viewservicecentermech()),
+                  );
+                },
+                icon: Icon(Icons.task_alt, color: Colors.blue),
+                label: Text(
+                  "service centers",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.black,

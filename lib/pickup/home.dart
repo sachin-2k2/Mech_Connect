@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mechconnect/mechanic/assignedtask.dart';
 import 'package:mechconnect/pickup/assignedtask.dart';
+import 'package:mechconnect/pickup/bottom.dart';
 import 'package:mechconnect/user/login.dart';
 import 'package:mechconnect/user/register.dart';
 
@@ -63,7 +64,7 @@ class _HomemepickupState extends State<Homemepickup> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => Assignedtaskpicks(),
+                      builder: (context) => BottomNavigationPage(),
                     ),
                   );
                 },

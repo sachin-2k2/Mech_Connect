@@ -125,7 +125,7 @@ class _ViewservicecenterState extends State<Viewservicecenter> {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              Report(sid: service[index]['_id'],latitude: userLat,longitude: userLng,),
+                              Report(sid: service[index]['_id'],latitude: userLat,longitude: userLng,serviceid: service[index]['_id'],),
                         ),
                       );
                     },

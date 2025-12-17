@@ -1,56 +1,84 @@
 import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mechconnect/user/complaint.dart';
 import 'package:mechconnect/user/feedback.dart';
+import 'package:mechconnect/user/home.dart';
 import 'package:mechconnect/user/register.dart';
 
 class Report extends StatefulWidget {
-  String? sid;
-  double? latitude;
-  double? longitude;
-  Report({super.key, required this.sid, required this.latitude, required this.longitude});
+  final String? sid;
+  final double? latitude;
+  final double? longitude;
+  final String serviceid;
+
+  Report({
+    super.key,
+    required this.sid,
+    required this.latitude,
+    required this.longitude,
+    required this.serviceid,
+  });
 
   @override
   State<Report> createState() => _ReportState();
 }
 
 class _ReportState extends State<Report> {
-  TextEditingController report = TextEditingController();
-  final formkey = GlobalKey<FormState>();
+  TextEditingController reportController = TextEditingController();
+  final formKey = GlobalKey<FormState>();
   File? image;
   final ImagePicker picker = ImagePicker();
 
-  String? selectedVehicle;
+  List<Map<String, dynamic>> vehicles = []; // Store vehicle objects
+  String? selectedVehicleId; // Store selected vehicle _id
 
-  // Sample vehicles list
-  List<String> vehicles = [
-    "Honda City - KA01AB1234",
-    "Toyota Corolla - KA02CD5678",
-    "Suzuki Swift - KA03EF9012",
-  ];
-
-  Future<void> pickimage() async {
-    final XFile? pickedfile = await picker.pickImage(
+  // Pick image using camera
+  Future<void> pickImage() async {
+    final XFile? pickedFile = await picker.pickImage(
       source: ImageSource.camera,
     );
-    if (pickedfile != null) {
+    if (pickedFile != null) {
       setState(() {
-        image = File(pickedfile.path);
+        image = File(pickedFile.path);
       });
     }
   }
 
-  Future<void> post_com(context) async {
+  // Fetch vehicles from API
+  Future<void> getVehicles(BuildContext context) async {
+    try {
+      final response = await dio.get('$baseurl/api/vehicle/$obid');
+
+      print(response.data);
+
+      if (response.statusCode == 200) {
+        setState(() {
+          vehicles = List<Map<String, dynamic>>.from(response.data["data"] ?? []);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to fetch vehicles")),
+        );
+      }
+    } catch (e) {
+      print("❌ Error fetching vehicles: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  // Post complaint/report
+  Future<void> postComplaint(BuildContext context) async {
     try {
       final formData = FormData.fromMap({
         'type': 'servicecenter',
-        'problemDiscription': report.text,
+        'userId':obid,
+        'problemDiscription': reportController.text,
         'serviceCenterId': widget.sid,
-        // 'userId': obid,
-        'vehicle': selectedVehicle, // Added selected vehicle
+        'vehicleId': selectedVehicleId, // send vehicle _id
         'userLocation': {
           'lat': widget.latitude.toString(),
           'lng': widget.longitude.toString(),
@@ -72,18 +100,30 @@ class _ReportState extends State<Report> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
-          report.clear();
+          reportController.clear();
           image = null;
-          selectedVehicle = null;
+          selectedVehicleId = null;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Report submitted successfully")),
+        );
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Registration failed')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Submission failed')),
+        );
       }
     } catch (e) {
-      print("❌ Registration error: $e");
+      print("❌ Submission error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error submitting report")),
+      );
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getVehicles(context);
   }
 
   @override
@@ -96,53 +136,60 @@ class _ReportState extends State<Report> {
       body: Padding(
         padding: const EdgeInsets.all(10.0),
         child: Form(
-          key: formkey,
+          key: formKey,
           child: SingleChildScrollView(
             child: Column(
               children: [
                 // Pick Image
                 InkWell(
-                  onTap: pickimage,
+                  onTap: pickImage,
                   child: CircleAvatar(
                     radius: 50,
                     backgroundImage: image != null ? FileImage(image!) : null,
-                    child: image == null ? Icon(Icons.camera) : null,
+                    child: image == null ? Icon(Icons.camera_alt) : null,
                   ),
                 ),
                 SizedBox(height: 20),
 
                 // Vehicle Dropdown
                 DropdownButtonFormField<String>(
-                  value: selectedVehicle,
+                  value: selectedVehicleId,
                   decoration: InputDecoration(
                     labelText: "Select Vehicle",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  items: vehicles
-                      .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                      .toList(),
+                  items: vehicles.map((vehicle) {
+                    String displayName =
+                        "${vehicle['brand']} ${vehicle['model']} - ${vehicle['vehicleNumber']}";
+                    return DropdownMenuItem<String>(
+                      value: vehicle['_id'], // cast to String
+                      child: Text(displayName),
+                    );
+                  }).toList(),
                   onChanged: (value) {
                     setState(() {
-                      selectedVehicle = value;
+                      selectedVehicleId = value;
                     });
                   },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Please select a vehicle";
                     }
+                    return null;
                   },
                 ),
                 SizedBox(height: 20),
 
                 // Problem Description
                 TextFormField(
-                  controller: report,
+                  controller: reportController,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Enter your details";
                     }
+                    return null;
                   },
                   maxLines: 10,
                   decoration: InputDecoration(
@@ -160,8 +207,8 @@ class _ReportState extends State<Report> {
                 // Send Button
                 ElevatedButton(
                   onPressed: () {
-                    if (formkey.currentState!.validate()) {
-                      post_com(context);
+                    if (formKey.currentState!.validate()) {
+                      postComplaint(context);
                     }
                   },
                   child: Text(
@@ -185,7 +232,10 @@ class _ReportState extends State<Report> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => Complaint()),
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            Complaint(serviceid: widget.serviceid),
+                      ),
                     );
                   },
                   child: Text(
@@ -209,7 +259,10 @@ class _ReportState extends State<Report> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => Feedbackpage()),
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            Feedbackpage(serviceid: widget.serviceid),
+                      ),
                     );
                   },
                   child: Text(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mechconnect/service/add.dart';
+import 'package:mechconnect/service/mymechanics.dart';
+import 'package:mechconnect/service/payementhistory.dart';
 import 'package:mechconnect/service/viewcomplaint.dart';
 import 'package:mechconnect/service/viewfeedback.dart';
 import 'package:mechconnect/service/viewrequest.dart';
@@ -149,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => Viewfeedback(),
+                            builder: (context) => ViewFeedback(),
                           ),
                         );
                       },
@@ -159,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => Login()),
+                          MaterialPageRoute(builder: (context) => PaymentHistory()),
                         );
                       },
                       child: buildMenuButton(Icons.logout, "LOG OUT"),

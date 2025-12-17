@@ -5,7 +5,7 @@ import 'package:mechconnect/service/pickups.dart';
 import 'package:mechconnect/user/register.dart';
 
 class Viewrequest extends StatefulWidget {
-  Viewrequest({super.key});
+  const Viewrequest({super.key});
 
   @override
   State<Viewrequest> createState() => _ViewrequestState();
@@ -14,34 +14,36 @@ class Viewrequest extends StatefulWidget {
 class _ViewrequestState extends State<Viewrequest> {
   List<dynamic> requests = [];
 
-  Future<void> get_requests(context) async {
+  Future<void> get_requests(BuildContext context) async {
     try {
       final response = await dio.get(
         '$baseurl/api/booking/servicecenter/$sobid',
       );
 
-      print(response.data);
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
           requests = response.data["data"];
 
-          // add local flag
+          // Local UI state
           for (var r in requests) {
             r["accepted"] = false;
           }
         });
-
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Successful')));
-      } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed')));
       }
     } catch (e) {
-      print(e);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      debugPrint(e.toString());
+    }
+  }
+
+  Future<void> post_status(
+      BuildContext context, String id, String status) async {
+    try {
+      await dio.put(
+        '$baseurl/api/booking/$id/status',
+        data: {'status': status},
+      );
+    } catch (e) {
+      debugPrint(e.toString());
     }
   }
 
@@ -55,19 +57,19 @@ class _ViewrequestState extends State<Viewrequest> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           "View Request",
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Colors.lightBlueAccent,
       ),
-
       body: requests.isEmpty
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
               itemCount: requests.length,
               itemBuilder: (context, index) {
                 final req = requests[index];
+                final vehicle = req["vehicleId"];
                 final userLoc = req["userLocation"];
                 final imageUrl = "$baseurl/${req['problemImage']}";
 
@@ -75,139 +77,177 @@ class _ViewrequestState extends State<Viewrequest> {
                   padding: const EdgeInsets.all(10),
                   child: Card(
                     elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Padding(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // =============== PROBLEM IMAGE ===============
-                          req["problemImage"] != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    imageUrl,
-                                    height: 200,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Container(
-                                  height: 150,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                      child: Text("No Image Uploaded")),
-                                ),
+                          // ================= IMAGE =================
+                          if (req["problemImage"] != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                imageUrl,
+                                height: 200,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          else
+                            Container(
+                              height: 150,
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Text("No Image Uploaded"),
+                              ),
+                            ),
 
-                          SizedBox(height: 10),
+                          const SizedBox(height: 10),
 
-                          // ISSUE
+                          // ================= ISSUE =================
                           Text(
                             req["problemDescription"] ?? "No issue",
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
 
-                          SizedBox(height: 5),
+                          const SizedBox(height: 6),
 
-                          // USER LOCATION
+                          // ================= LOCATION =================
                           Text(
-                            "User Location: LAT ${userLoc["lat"]}, LNG ${userLoc["lng"]}",
-                            style: TextStyle(color: Colors.black87),
+                            "LAT: ${userLoc["lat"]}, LNG: ${userLoc["lng"]}",
                           ),
 
-                          SizedBox(height: 10),
+                          const Divider(height: 20),
 
-                          // ================== BUTTONS ==================
+                          // ================= VEHICLE DETAILS =================
+                          if (vehicle != null) ...[
+                            const Text(
+                              "Vehicle Details",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.motorcycle),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "${vehicle["brand"]} ${vehicle["model"]}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text("Year : ${vehicle["year"]}"),
+                            Text("Vehicle No : ${vehicle["vehicleNumber"]}"),
+                            Text("Fuel : ${vehicle["fuelType"]}"),
+                            Text("Type : ${vehicle["vehicleType"]}"),
+                          ],
+
+                          const SizedBox(height: 12),
+
+                          // ================= ACTION BUTTONS =================
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
-                            children: req["accepted"] == false
-                                ? [
-                                    // ACCEPT BUTTON
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          req["accepted"] = true;
-                                        });
-                                      },
-                                      style: TextButton.styleFrom(
-                                          backgroundColor: Colors.green),
-                                      child: Text(
-                                        "Accept",
-                                        style: TextStyle(color: Colors.white),
+                            children: [
+                              if (req["accepted"] == false) ...[
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      req["accepted"] = true;
+                                    });
+                                    post_status(
+                                        context, req['_id'], 'accepted');
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                  ),
+                                  child: const Text(
+                                    "Accept",
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      req["accepted"] = "rejected";
+                                    });
+                                    post_status(
+                                        context, req['_id'], 'rejected');
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  child: const Text(
+                                    "Reject",
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+
+                              if (req["accepted"] == "rejected") ...[
+                                const Text(
+                                  "Rejected",
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+
+                              if (req["accepted"] == true) ...[
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            Assign(bid: req['_id']),
                                       ),
-                                    ),
-
-                                    SizedBox(width: 10),
-
-                                    // REJECT BUTTON
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          req["accepted"] = "rejected";
-                                        });
-                                      },
-                                      style: TextButton.styleFrom(
-                                          backgroundColor: Colors.red),
-                                      child: Text(
-                                        "Reject",
-                                        style: TextStyle(color: Colors.white),
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                  child: const Text(
+                                    "Mechanic",
+                                    style:
+                                        TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            Pickups(bid: req['_id']),
                                       ),
-                                    ),
-                                  ]
-                                : req["accepted"] == "rejected"
-                                    ? [
-                                        Text(
-                                          "Rejected",
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      ]
-                                    : [
-                                        // MECHANIC BUTTON
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => Assign(),
-                                              ),
-                                            );
-                                          },
-                                          style: TextButton.styleFrom(
-                                              backgroundColor: Colors.blue),
-                                          child: Text(
-                                            "Mechanic",
-                                            style:
-                                                TextStyle(color: Colors.white),
-                                          ),
-                                        ),
-
-                                        SizedBox(width: 10),
-
-                                        // PICK UP BUTTON
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    Pickups(),
-                                              ),
-                                            );
-                                          },
-                                          style: TextButton.styleFrom(
-                                              backgroundColor: Colors.orange),
-                                          child: Text(
-                                            "Pick Up",
-                                            style:
-                                                TextStyle(color: Colors.white),
-                                          ),
-                                        ),
-                                      ],
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                  child: const Text(
+                                    "Pick Up",
+                                    style:
+                                        TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
