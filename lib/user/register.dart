@@ -9,7 +9,7 @@ class Register extends StatefulWidget {
   @override
   State<Register> createState() => _RegisterState();
 }
-final baseurl = 'http://192.168.1.119:5000';
+final baseurl = 'http://192.168.1.106:5000';
 Dio dio = Dio();
 class _RegisterState extends State<Register> {
   TextEditingController Name = TextEditingController();
