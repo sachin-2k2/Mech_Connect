@@ -3,7 +3,7 @@ import 'package:mechconnect/service/add.dart';
 import 'package:mechconnect/service/mymechanics.dart';
 import 'package:mechconnect/service/payementhistory.dart';
 import 'package:mechconnect/service/viewcomplaint.dart';
-import 'package:mechconnect/service/viewfeedback.dart';
+import 'package:mechconnect/service/viewfeedback.dart';   
 import 'package:mechconnect/service/viewrequest.dart';
 import 'package:mechconnect/service/viewstatus.dart';
 import 'package:mechconnect/user/login.dart';
@@ -22,7 +22,7 @@ class _homeserviceState extends State<homeservice> {
       theme: ThemeData(
         primaryColor: Colors.blue,
         scaffoldBackgroundColor: Color(0xFFF5F7FA),
-        fontFamily: 'Inter',
+        fontFamily: 'Inter', 
       ),
       home: HomeScreen(),
     );
@@ -375,20 +375,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
 
-                // Update Status
-                _buildActionCard(
-                  title: "Update Status",
-                  subtitle: "Service status updates",
-                  icon: Icons.access_time,
-                  color: Colors.deepOrange,
-                  iconBackground: Colors.deepOrange.shade50,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => Viewstatus()),
-                    );
-                  },
-                ),
+                // // Update Status
+                // _buildActionCard(
+                //   title: "Update Status",
+                //   subtitle: "Service status updates",
+                //   icon: Icons.access_time,
+                //   color: Colors.deepOrange,
+                //   iconBackground: Colors.deepOrange.shade50,
+                //   onTap: () {
+                //     Navigator.push(
+                //       context,
+                //       MaterialPageRoute(builder: (context) => Viewstatus()),
+                //     );
+                //   },
+                // ),
 
                 // Payment History
                 _buildActionCard(

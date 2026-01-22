@@ -6,7 +6,7 @@ import 'package:mechconnect/user/login.dart';
 import 'package:mechconnect/user/notifications.dart';
 import 'package:mechconnect/user/pickup.dart';
 import 'package:mechconnect/user/register.dart';
-import 'package:mechconnect/user/tracking.dart';
+import 'package:mechconnect/user/trackbottombar.dart';
 import 'package:mechconnect/user/viewpayment.dart';
 import 'package:mechconnect/user/viewservicecenter.dart';
 
@@ -404,7 +404,7 @@ class _HomeScreenusrState extends State<HomeScreenusr> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => Trackingpage()),
+                      MaterialPageRoute(builder: (context) => Trackingbottom()),
                     );
                   },
                 ),

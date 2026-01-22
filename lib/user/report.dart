@@ -27,6 +27,7 @@ class Report extends StatefulWidget {
 
 class _ReportState extends State<Report> {
   TextEditingController reportController = TextEditingController();
+  TextEditingController locationController = TextEditingController(); // New location field
   final formKey = GlobalKey<FormState>();
   File? image;
   final ImagePicker picker = ImagePicker();
@@ -36,6 +37,16 @@ class _ReportState extends State<Report> {
   List<Map<String, dynamic>> vehicles = [];
   String? selectedVehicleId;
   String? selectedVehicleDisplay;
+
+  @override
+  void initState() {
+    super.initState();
+    getVehicles(context);
+    // Pre-fill location with coordinates if available
+    if (widget.latitude != null && widget.longitude != null) {
+      locationController.text = "${widget.latitude!.toStringAsFixed(6)}, ${widget.longitude!.toStringAsFixed(6)}";
+    }
+  }
 
   // Pick image using camera
   Future<void> pickImage() async {
@@ -106,6 +117,16 @@ class _ReportState extends State<Report> {
       return;
     }
 
+    if (locationController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please enter your location"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       isLoading = true;
     });
@@ -121,6 +142,7 @@ class _ReportState extends State<Report> {
           'lat': widget.latitude.toString(),
           'lng': widget.longitude.toString(),
         },
+        'address': locationController.text, // Add location text to API
         'img': image != null
             ? await MultipartFile.fromFile(
                 image!.path,
@@ -139,6 +161,7 @@ class _ReportState extends State<Report> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
           reportController.clear();
+          locationController.clear();
           image = null;
           selectedVehicleId = null;
           selectedVehicleDisplay = null;
@@ -405,12 +428,6 @@ class _ReportState extends State<Report> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    getVehicles(context);
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
@@ -608,6 +625,78 @@ class _ReportState extends State<Report> {
 
                           SizedBox(height: 30),
 
+                          // Location Field (Added after vehicle selection)
+                          Text(
+                            "Service Location *",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue.shade900,
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: TextFormField(
+                              controller: locationController,
+                              
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.all(15),
+                                hintText:
+                                    "Enter your address or location where service is needed",
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 14,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.location_on,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              style: TextStyle(fontSize: 16),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your location';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          if (widget.latitude != null && widget.longitude != null)
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.gps_fixed,
+                                    size: 16,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Coordinates auto-filled: ${widget.latitude!.toStringAsFixed(6)}, ${widget.longitude!.toStringAsFixed(6)}",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          SizedBox(height: 30),
+
                           // Problem Description
                           Text(
                             "Describe the Issue *",
@@ -637,6 +726,12 @@ class _ReportState extends State<Report> {
                                 ),
                               ),
                               style: TextStyle(fontSize: 16),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please describe the issue';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           SizedBox(height: 10),
@@ -823,7 +918,7 @@ class _ReportState extends State<Report> {
             ),
           ),
         ],
-      ),
+      )
     );
   }
 
@@ -851,7 +946,7 @@ class _ReportState extends State<Report> {
             ),
           ),
         ],
-      ),
+      )
     );
   }
 

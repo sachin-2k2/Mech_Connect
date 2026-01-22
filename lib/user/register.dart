@@ -2,31 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:mechconnect/user/login.dart';
 import 'package:dio/dio.dart';
 
-
 class Register extends StatefulWidget {
   Register({super.key});
 
   @override
   State<Register> createState() => _RegisterState();
 }
-final baseurl = 'http://192.168.1.106:5000';
+
+final baseurl = 'http://192.168.1.106:8000';
 Dio dio = Dio();
+
 class _RegisterState extends State<Register> {
   TextEditingController Name = TextEditingController();
-
   TextEditingController Contact = TextEditingController();
-
   TextEditingController Email = TextEditingController();
   TextEditingController Password = TextEditingController();
   TextEditingController ConfirmPassword = TextEditingController();
 
   final formkey = GlobalKey<FormState>();
   bool visible = true;
-  bool visible1= true;
+  bool visible1 = true;
 
-
-    Future<void> post_reg(context) async {
-
+  Future<void> post_reg(context) async {
     try {
       final response = await dio.post(
         '$baseurl/api/user/register',
@@ -163,7 +160,8 @@ class _RegisterState extends State<Register> {
                   if (value != Password.text) {
                     return "password doesn't match";
                   }
-                },obscureText: visible1,
+                },
+                obscureText: visible1,
                 decoration: InputDecoration(
                   suffixIcon: IconButton(
                     onPressed: () {
@@ -172,7 +170,9 @@ class _RegisterState extends State<Register> {
                       });
                     },
                     icon: Icon(
-                      visible1? Icons.visibility_off_rounded : Icons.visibility,
+                      visible1
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility,
                     ),
                   ),
                   label: Text("Confirm Password"),
@@ -188,7 +188,7 @@ class _RegisterState extends State<Register> {
               ElevatedButton(
                 onPressed: () {
                   if (formkey.currentState!.validate()) {
-                  post_reg(context);
+                    post_reg(context);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -213,7 +213,7 @@ class _RegisterState extends State<Register> {
                   Text("Already Have An Acoount ? "),
                   TextButton(
                     onPressed: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => Login()),
                       );
